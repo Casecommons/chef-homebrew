@@ -30,11 +30,32 @@ remote_file homebrew_go do
   not_if { ::File.exist? '/usr/local/bin/brew' }
 end
 
-execute 'install homebrew' do
-  command homebrew_go
-  environment lazy { { 'HOME' => ::Dir.home(homebrew_owner), 'USER' => homebrew_owner } }
-  user homebrew_owner
-  not_if { ::File.exist? '/usr/local/bin/brew' }
+begin
+  template '/etc/sudoers.d/homebrew_sudo' do
+    source 'homebrew_sudo.erb'
+    variables (
+      lazy {
+        { :user => homebrew_owner, :hostname => node['hostname'],
+          :commands => node['homebrew']['sudo']['commands'] }
+      }
+    )
+    action :create
+    mode '00644'
+    user 'root'
+    group 'wheel'
+    not_if { (::File.exist? '/usr/local/bin/brew') || node['homebrew']['sudo']['commands'].empty? }
+  end
+
+  execute 'install homebrew' do
+    command "#{homebrew_go} < /dev/null"
+    environment lazy { { 'HOME' => ::Dir.home(homebrew_owner), 'USER' => homebrew_owner } }
+    user homebrew_owner
+    not_if { ::File.exist? '/usr/local/bin/brew' }
+  end
+ensure
+  file '/etc/sudoers.d/homebrew_go' do
+    action :delete
+  end
 end
 
 execute 'set analytics' do
